@@ -6,9 +6,9 @@
 -- Hie-bios's license is distributed with the hie-bios dependency
 -- Initial differences can be found at https://github.com/mpickering/hie-bios/pull/178
 
-module Hie.Implicit.Cradle
-  ( loadImplicitHieCradle,
-  )
+module Hie.Implicit.Cradle (
+    loadImplicitHieCradle,
+)
 where
 
 import Control.Applicative ((<|>))
@@ -33,44 +33,45 @@ import System.Process (readProcess)
 -- | Given root\/foo\/bar.hs, load an implicit cradle
 loadImplicitHieCradle :: FilePath -> IO (Cradle a)
 loadImplicitHieCradle wfile = do
-  let wdir = takeDirectory wfile
-  cfg <- runMaybeT (implicitConfig wdir)
-  return $ case cfg of
-    Just bc -> getCradle absurd bc
-    Nothing -> defaultCradle wdir
+    let wdir = takeDirectory wfile
+    cfg <- runMaybeT (implicitConfig wdir)
+    return $ case cfg of
+        Just bc -> getCradle absurd bc
+        Nothing -> defaultCradle wdir
 
 implicitConfig :: FilePath -> MaybeT IO (CradleConfig a, FilePath)
 implicitConfig fp = do
-  (crdType, wdir) <- implicitConfig' fp
-  return (CradleConfig [] crdType, wdir)
+    (crdType, wdir) <- implicitConfig' fp
+    return (CradleConfig [] crdType, wdir)
 
 implicitConfig' :: FilePath -> MaybeT IO (CradleType a, FilePath)
 implicitConfig' fp =
-  ( \wdir ->
-      (Bios (Program $ wdir </> ".hie-bios") Nothing Nothing, wdir)
-  )
-    <$> biosWorkDir fp
-    --   <|> (Obelisk,) <$> obeliskWorkDir fp
-    --   <|> (Bazel,) <$> rulesHaskellWorkDir fp
-    <|> (cabalExecutable >> cabalProjectDir fp >> cabalDistDir fp >>= cabal)
-    <|> (stackExecutable >> stackYamlDir fp >> stackWorkDir fp >>= stack)
-    <|> (cabalExecutable >> (cabalProjectDir fp <|> cabalDistDir fp) >>= cabal)
-    <|> (stackExecutable >> stackYamlDir fp >>= stack)
-    <|> (cabalExecutable >> cabalFile fp >>= cabal)
+    ( \wdir ->
+        (Bios (Program $ wdir </> ".hie-bios") Nothing Nothing, wdir)
+    )
+        <$> biosWorkDir fp
+        --   <|> (Obelisk,) <$> obeliskWorkDir fp
+        --   <|> (Bazel,) <$> rulesHaskellWorkDir fp
+        <|> (cabalExecutable >> cabalProjectDir fp >> cabalDistDir fp >>= cabal)
+        <|> (stackExecutable >> stackYamlDir fp >> stackWorkDir fp >>= stack)
+        <|> (cabalExecutable >> (cabalProjectDir fp <|> cabalDistDir fp) >>= cabal)
+        <|> (stackExecutable >> stackYamlDir fp >>= stack)
+        <|> (cabalExecutable >> cabalFile fp >>= cabal)
   where
     readPkgs f gp p = do
-      cfs <- gp p
-      pkgs <- liftIO $ catMaybes <$> mapM (nestedPkg p) cfs
-      pure $ concatMap (components f) pkgs
+        cfs <- gp p
+        pkgs <- liftIO $ catMaybes <$> mapM (nestedPkg p) cfs
+        pure $ concatMap (components f) pkgs
     build cn cc gp p = do
-      c <- cn <$> readPkgs cc gp p
-      pure (c, p)
+        c <- cn <$> readPkgs cc gp p
+        pure (c, p)
     cabal :: FilePath -> MaybeT IO (CradleType a, FilePath)
     cabal fp = ifM ((>= "3.4") <$> liftIO cabalVersion) (pure (Cabal mempty, fp)) (build (CabalMulti mempty) cabalComponent' cabalPkgs fp)
     stack :: FilePath -> MaybeT IO (CradleType a, FilePath)
     stack = build (StackMulti mempty) stackComponent' stackYamlPkgs
     components f (Package n cs) = map (f n) cs
 
+    cabalComponent' :: Name -> Component -> (FilePath, CabalType)
     cabalComponent' n c = CabalType . Just <$> cabalComponent n c
     stackComponent' n c = flip StackType Nothing . Just <$> stackComponent n c
 
@@ -114,46 +115,48 @@ stackYamlDir = findFileUpwards isStack
   where
     isStack name = name == "stack.yaml"
 
--- | Searches upwards for the first directory containing a subdirectory
--- to match the predicate.
+{- | Searches upwards for the first directory containing a subdirectory
+to match the predicate.
+-}
 findSubdirUpwards :: (FilePath -> Bool) -> FilePath -> MaybeT IO FilePath
 findSubdirUpwards p dir = findContentUpwards p' dir
   where
     p' subdir = do
-      exists <- doesDirectoryExist $ dir </> subdir
-      return $ (p subdir) && exists
+        exists <- doesDirectoryExist $ dir </> subdir
+        return $ (p subdir) && exists
 
--- | Searches upwards for the first directory containing a file to match
--- the predicate.
+{- | Searches upwards for the first directory containing a file to match
+the predicate.
+-}
 findFileUpwards :: (FilePath -> Bool) -> FilePath -> MaybeT IO FilePath
 findFileUpwards p dir = findContentUpwards p' dir
   where
     p' file = do
-      exists <- doesFileExist $ dir </> file
-      return $ (p file) && exists
+        exists <- doesFileExist $ dir </> file
+        return $ (p file) && exists
 
 findContentUpwards :: (FilePath -> IO Bool) -> FilePath -> MaybeT IO FilePath
 findContentUpwards p dir = do
-  cnts <-
-    liftIO $
-      handleJust
-        -- Catch permission errors
-        (\(e :: IOError) -> if isPermissionError e then Just [] else Nothing)
-        pure
-        (findContent p dir)
-  case cnts of
-    []
-      | dir' == dir -> fail "No cabal files"
-      | otherwise -> findContentUpwards p dir'
-    _ : _ -> return dir
+    cnts <-
+        liftIO $
+            handleJust
+                -- Catch permission errors
+                (\(e :: IOError) -> if isPermissionError e then Just [] else Nothing)
+                pure
+                (findContent p dir)
+    case cnts of
+        []
+            | dir' == dir -> fail "No cabal files"
+            | otherwise -> findContentUpwards p dir'
+        _ : _ -> return dir
   where
     dir' = takeDirectory dir
 
 -- | Sees if any file in the directory matches the predicate
 findContent :: (FilePath -> IO Bool) -> FilePath -> IO [FilePath]
 findContent p dir = do
-  b <- doesDirectoryExist dir
-  if b then getFiles else pure []
+    b <- doesDirectoryExist dir
+    if b then getFiles else pure []
   where
     getFiles = getDirectoryContents dir >>= filterM p
 
