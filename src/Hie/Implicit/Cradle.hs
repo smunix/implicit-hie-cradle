@@ -17,6 +17,7 @@ import Control.Monad
 import Control.Monad.Extra (ifM)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
+import Data.Bifunctor
 import Data.Maybe
 import Data.Void
 import HIE.Bios.Config hiding (cabalComponent, stackComponent)
@@ -72,7 +73,8 @@ implicitConfig' fp =
     components f (Package n cs) = map (f n) cs
 
     cabalComponent' :: Name -> Component -> (FilePath, CabalType)
-    cabalComponent' n c = CabalType . Just <$> cabalComponent n c
+    -- cabalComponent' n c = CabalType . Just <$> cabalComponent n c
+    cabalComponent' n c = let (fp, component) = cabalComponent n c in (fp, CabalType (Just component) (Just fp))
     stackComponent' n c = flip StackType Nothing . Just <$> stackComponent n c
 
 ------------------------------------------------------------------------
