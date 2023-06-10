@@ -71,7 +71,8 @@ implicitConfig' fp =
     stack = build (StackMulti mempty) stackComponent' stackYamlPkgs
     components f (Package n cs) = map (f n) cs
 
-    cabalComponent' n c = CabalType . Just <$> cabalComponent n c
+    cabalComponent' :: Name -> Component -> (FilePath, CabalType)
+    cabalComponent' n c = let (fp, component) = cabalComponent n c in (fp, CabalType (Just component) (Just fp))
     stackComponent' n c = flip StackType Nothing . Just <$> stackComponent n c
 
 ------------------------------------------------------------------------
